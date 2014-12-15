@@ -1,0 +1,348 @@
+package hangman;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Scanner;
+import java.util.Set;
+import java.util.*;
+import java.util.Iterator;
+import java.io.*;
+
+
+public class EvilHangman implements EvilHangmanGame
+{
+	public Set<String> Dictionary;
+	public Map<String, Set<String>> Partition;
+	public Set<String> guesses;
+	public boolean correctGuess;
+	public String gameBoard;
+	public int number;
+	
+	public EvilHangman()
+	{
+		
+	}
+	
+	@Override
+	public void startGame(File dictionary, int wordLength) 
+	{
+		Dictionary = new HashSet<String>();						//Start with a fresh Dictionary
+		Partition = new HashMap<String, Set<String>>(); 		//Start with a fresh Map
+		guesses = new TreeSet<String>();						//Start with new guesses
+		number = 0;
+		StringBuilder sb = new StringBuilder();
+		for(int i = 0; i < wordLength; i++)					//initializes starting gameBoard
+		{
+			sb.append("-");
+		}
+		gameBoard = sb.toString();
+		
+		try 
+		{
+			Scanner scan = new Scanner(dictionary);				//scan through the file
+			while(scan.hasNext())
+			{
+				String word;
+				word = scan.next();
+				if(word.length() == wordLength & word.matches("[a-zA-Z]+"))				//if the word matches the wordLength, add it to Dictionary
+				{
+					Dictionary.add(word);
+				}
+			}
+			scan.close();
+		} 
+		catch (FileNotFoundException e) 
+		{
+			e.printStackTrace();
+		}
+		
+		
+	}
+
+	@Override
+	public Set<String> makeGuess(char guess) throws GuessAlreadyMadeException 
+	{
+		correctGuess = false;
+		String check = Character.toString(guess);
+		if(guesses.contains(check))						//checks for previous guess with same letter
+		{
+			System.out.println("Letter already guessed");
+			throw new GuessAlreadyMadeException();
+		}
+		guesses.add(check);
+		partition(guess);
+		return Dictionary;
+	}
+	
+	private void partition(char guess)
+	{
+		for(String word : Dictionary)
+		{
+			String result = matcher(word, guess);				//returns word in format of --a-
+			if(!Partition.containsKey(result))
+			{
+				Set<String> set = new HashSet<String>();
+				set.add(word);
+				Partition.put(result, set);
+			}
+			else
+			{
+				Partition.get(result).add(word);
+			}
+		}
+		replace();
+	}
+	
+	private void replace()					//finds largest remaining set and declares as new dictionary
+	{
+		Set<String> temp = new HashSet<String>();
+		String key = "";
+		for(Map.Entry<String, Set<String>> temporary : Partition.entrySet())
+		{
+			if(temporary.getValue().size() >= temp.size())
+			{
+				if(temporary.getValue().size() == temp.size())
+				{
+					//tie breakers														
+					if(!compareKey(key, temporary.getKey()))
+					{
+						temp = temporary.getValue();
+						key = temporary.getKey();
+					}
+				}
+				else
+				{
+					temp = temporary.getValue();
+					key = temporary.getKey();
+				}
+			}
+		}		
+		if(newChar(key))					
+		{
+			correctGuess = true;
+			matchCount(key);
+			updateBoard(key);
+		}
+		Dictionary = temp;									//set the new dictionary to be the winning set
+		Partition.clear();
+	}
+	
+	private boolean compareKey(String Old, String New)
+	{
+		if(allDash(Old))
+		{
+			return true;
+		}
+		if(allDash(New))
+		{
+			return false;
+		}
+		if(newLetters(Old) < newLetters(New))
+		{
+			return true;
+		}
+		if(newLetters(Old) > newLetters(New))
+		{
+			return false;
+		}
+		if(furthestBack(Old, New))
+		{
+			return true;
+		}
+		return false;
+	}
+	
+	private boolean furthestBack(String one, String two)
+	{
+		for(int i = one.length() - 1; i >=0; i--)
+		{
+			if(one.charAt(i) != '-')
+			{
+				if(two.charAt(i) == '-')
+				{
+					return true;
+				}
+			}
+			else if(two.charAt(i) != '-')
+			{
+				return false;
+			}
+		}
+		return false;
+	}
+	
+	private int newLetters(String word)
+	{
+		int number = 0;
+		for(int i = 0; i < word.length(); i++)
+		{
+			if(word.charAt(i) != '-')
+			{
+				number++;
+			}
+		}
+		return number;
+	}
+	
+	private boolean allDash(String word)
+	{
+		for(int i = 0; i < word.length(); i++)
+		{
+			if(word.charAt(i) != '-')
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+	
+	private void updateBoard(String word)					//updates gameBoard
+	{
+		StringBuilder sb = new StringBuilder();
+		for(int i = 0; i < word.length(); i++)
+		{
+			if(word.charAt(i) != '-')
+			{
+				sb.append(word.charAt(i));
+			}
+			else
+			{
+				sb.append(gameBoard.charAt(i));
+			}
+		}
+		gameBoard = sb.toString();
+	}
+	
+	private boolean newChar(String word)						//checks for any found characters
+	{
+		for(int i = 0; i < word.length(); i++)
+		{
+			if(word.charAt(i) != '-')
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	private void matchCount(String word)						//counts the number of matches
+	{
+		for(int i = 0; i < word.length(); i++)
+		{
+			if(word.charAt(i) != '-')
+			{
+				number++;
+			}
+		}
+	}
+	
+	private String matcher(String word, char guess)				//sets key format
+	{
+		StringBuilder sb = new StringBuilder();
+		for(int i = 0; i < word.length(); i++)
+		{
+			if(word.charAt(i) == guess)
+			{
+				sb.append(guess);
+			}
+			else
+			{
+				sb.append("-");
+			}
+		}
+		return sb.toString();
+	}
+	
+	public static void main(String[] args) throws GuessAlreadyMadeException
+	{
+		if(args.length != 3)
+		{
+			System.out.println("Invalid Input");
+			return;
+		}
+		File file = new File(args[0]);
+		int wordLength = Integer.parseInt(args[1]);
+		int remaining = wordLength;
+		if(wordLength < 2)										//check for proper wordLength
+		{
+			System.out.println("The word must contain at least two letters");
+			return;
+		}
+		int chances = Integer.parseInt(args[2]);
+		EvilHangman game = new EvilHangman();
+		game.startGame(file, wordLength); 					//reads in dictionary and sets word length
+		BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
+		
+		while(chances != 0)
+		{
+			System.out.println(game.Dictionary.size());
+			System.out.println("You have " + chances + " guesses left");
+			StringBuilder s = new StringBuilder();
+			//game.guesses
+			for(String hold : game.guesses)
+			{
+				s.append(hold);
+				s.append(" ");
+			}
+			System.out.println("Used letters: " + s.toString());
+			System.out.println("Word: " + game.gameBoard.toString());
+			System.out.println("Enter guess: ");
+			try 
+			{
+				String temp;
+				temp = input.readLine();
+				while(!temp.matches("[a-zA-Z]"))
+				{
+					System.out.println("!!!!!!!!!!!!!\nInvalid Input\n!!!!!!!!!!!!!");
+					System.out.println("Enter guess: ");
+					temp = input.readLine();
+				}
+				temp = temp.toLowerCase();
+				char attempt = temp.charAt(0);
+				if(game.guesses.contains(temp))						//checks for previous guess with same letter
+				{
+					System.out.println("Letter already guessed");
+					continue;
+				}
+				else
+				{
+					game.makeGuess(attempt);
+					if(!game.correctGuess)
+					{
+						chances--;
+						if(chances != 0)
+						{
+							System.out.println("Sorry, there are no " + temp + "\'s");	
+						}
+					}
+					else
+					{
+						remaining -= game.number;
+						System.out.println("Yes, there is " + game.number + " " + temp);
+					}
+					game.number = 0;
+				}
+			} 
+			catch (IOException e) 
+			{
+				e.printStackTrace();
+			}
+			if(remaining == 0)
+			{
+				System.out.println("\n***********\n*YOU WIN!!*\n***********\n");
+				System.out.println("The word was: " + game.gameBoard);
+				return;
+			}
+			System.out.println("");
+		}
+		System.out.println("You lose!");
+		Iterator<String> iter = game.Dictionary.iterator();
+		String winner = iter.next();
+		System.out.println("The word was: " + winner);
+	}
+
+}
